@@ -12,7 +12,6 @@ Ideally, we can have an actual abstraction, for example an "ErrorReporter" Inter
 Smallest sequences that represent meaningful information for the program language.<br>
 Lexical analysis -> scan through the list of characters(from the line of code) and group them together into the smallest sequences that still representing something.<br>
 Ex: <ins>var</ins> <ins>language</ins> <ins>=</ins> <ins>"lox"</ins> <ins>;</ins><br>
-
 ##Token
 Token{Tokentype, lexeme; literal; location}<br>
 - Tokentype : 
@@ -27,8 +26,7 @@ Token{Tokentype, lexeme; literal; location}<br>
 -location: 
   - the whereabout on that "text" in the code
   - error report require this information
-
 ##Problem
-One small problem, because we assume that all identifiers will start with letter or underscore<br>
+One small problem, because we assume that all identifiers will start with letter or underscore.<br>
 Therefore, an illegal input, say 1abc will be tokenized to NUMBER 1 1.0 and IDENTIFIER abc null.<br>
 This won't be a problem in the actual implementation because Lox require a ";" at the end of each statement.  
