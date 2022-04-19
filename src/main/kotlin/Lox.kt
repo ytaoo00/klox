@@ -53,11 +53,12 @@ class Lox {
         fun run(source:String){
             val scanner = Scanner(source)
             val tokens = scanner.scanTokens()
-            // for now just print token
-            for(token in tokens){
-                println(token)
-            }
-            // TODO: 4/15/2022 Parsing. AST, etc
+            val parser = Parser(tokens)
+            val expression = parser.parse()
+
+            if (hadError) return;
+
+            println(expression?.let { AstPrinter().print(it) })
         }
 
         /*
@@ -67,6 +68,7 @@ class Lox {
         * The error reporting mechanism will show something like
         * 15 function(first,second,) Unexpected ","
         * We leave out the where section for now.
+        * This is for scanner, the error is that we can not tokenize the input
          */
         fun error(line: Int, message: String){
             report(line, "", message)
@@ -76,9 +78,21 @@ class Lox {
         /*
         * Helper function for error reporting
          */
-        fun report(line: Int, where: String, message: String){
+        private fun report(line: Int, where: String, message: String){
             println("[line $line] Error $where : $message")
             hadError = true
+        }
+
+        /*
+            Helper function: another error reporting for token error
+         */
+        fun error(token: Token, message: String){
+            if (token.type == TokenType.EOF){
+                report(token.line, " at end", message)
+            }
+            else{
+                report(token.line, " at ${token.lexeme}", message)
+            }
         }
     }
 }
