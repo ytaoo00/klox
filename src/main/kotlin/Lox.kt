@@ -4,8 +4,13 @@ import kotlin.system.exitProcess
 class Lox {
     companion object{
         // this is the primary reason we have the error function here
-        //
         var hadError = false
+        var hadRuntimeError = false
+
+        //we create the interpreter object here.
+        // because when we are making successive calls to run() inside a REPL session, we can use the same object
+        // important for global variables
+        val interpreter = Interpreter()
 
         /*
         * Initialize script running
@@ -16,8 +21,13 @@ class Lox {
             val bytes = File(path).readBytes()
             run(String(bytes))
             // if we fun an error in scanning/parsing, we do not want to execute the code
+            // but when the process is finished, we need to let the calling process know.
             if (hadError) {
                 exitProcess(65)
+            }
+            // if running from a file and encounter a run time error, we set an exit code when the process quits to let the calling process know.
+            if (hadRuntimeError){
+                exitProcess(70)
             }
         }
 
@@ -36,7 +46,7 @@ class Lox {
                 //an end of file signal is triggered
                 //we break the loop hence stop the program
                 //Expected an EOF token in this situation
-                val line : String = reader.readLine() ?: break;
+                val line : String = reader.readLine() ?: break
                 run(line)
                 // reset the hadError to false
                 // in case some errors happens in the previous line
@@ -56,9 +66,12 @@ class Lox {
             val parser = Parser(tokens)
             val expression = parser.parse()
 
-            if (hadError) return;
+            if (hadError) return
+            // if we do not have an error report in the parsing stage
+            // the expression can not be null
+            interpreter.interpret(expression!!)
 
-            println(expression?.let { AstPrinter().print(it) })
+//            println(expression?.let { AstPrinter().print(it) })
         }
 
         /*
@@ -94,6 +107,15 @@ class Lox {
                 report(token.line, " at ${token.lexeme}", message)
             }
         }
+
+        /*
+        Helper function: handle the runtime error while evaluating the expression
+         */
+        fun runtimeError(error : RuntimeError){
+            println(error.message + "\n[line ${error.token.line}]")
+            hadRuntimeError = true
+        }
+
     }
 }
 

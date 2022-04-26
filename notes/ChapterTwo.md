@@ -273,9 +273,17 @@ class Chef implements PastryVisitor{
 }
 ````
 In general, to perform an operation on a pastry, we call its accept() method and pass in the visitor for the operation we want to execute.<br>
-accept(this) -> takes in an instance of chef, which is a instance of visitor. <br>
+accept(this) -> takes in an instance of chef, which is an instance of visitor. <br>
 Due to polymorphism, pastry.accept(this) will trigger the specific subclass's accept, whether that be (Beignet) or (Cruller)<br>
 Then in the specific subclass, say Beignet, the accept method will in turn calls the appropriate visit method.<br>
 This way, we have one accept() method to each class, but we can have as many visitors as we want without ever having to touch the pastry classes again.<br>
 A bit twisty, but very clever.<br>
 
+## Kotlin this keyword
+To denote the current receiver, you use this expressions:
+
+- In a member of a class, this refers to the current object of that class.
+
+- In an extension function or a function literal with receiver this denotes the receiver parameter that is passed on the left-hand side of a dot.
+
+If this has no qualifiers, it refers to the innermost enclosing scope. To refer to this in other scopes, label qualifiers are used:

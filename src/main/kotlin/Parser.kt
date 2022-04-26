@@ -11,11 +11,10 @@ class Parser(private val tokens : List<Token>) {
         initialization
      */
     fun parse(): Expr? {
-        try{
-            return expression()
-        }
-        catch (error : ParserError ){
-            return null
+        return try{
+            expression()
+        } catch (error : ParserError){
+            null
         }
     }
 

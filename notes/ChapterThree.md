@@ -292,5 +292,5 @@ In the error() function call, we return an exception, and in the primary(), we t
 Why not throw the exception in error()?<br>
 Again looking ahead with some more complex statement, we may need to use the synchronize method to abandon only nested function calls to a certain depth.<br>
 For this simple expression parsing, we catch the exception in parser(). <br>
-But for more complex design, we might need to catch at where we are cynchronizing to. <br>
+But for more complex design, we might need to catch at where we are synchronizing to. <br>
 
