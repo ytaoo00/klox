@@ -9,20 +9,101 @@ class Parser(private val tokens : List<Token>) {
 
     /*
         initialization
+        parser will take in a line/one file of plain text
+        and try to return a list of statement.
+        This is also a direct translation of the program rule.
+        program   -> declaration* ;
      */
-    fun parse(): Expr? {
-        return try{
-            expression()
-        } catch (error : ParserError){
-            null
+    fun parse(): List<Stmt> {
+        // here we use a val because we want to add but we do not want to reassign
+        val statements : MutableList<Stmt> = mutableListOf()
+        while (!isAtEnd()){
+            // if declaration returns null, then some error happened, we relay on synchronize() to recover
+            // and we can safely skip
+            val statement = declaration()
+            if (statement != null) {
+                statements.add(statement)
+            }
         }
+        // convert the statement to Immutable before return
+        return statements.toList()
     }
 
     /*
-    expression -> equality;
+    declaration -> varDecl | statement ;
+    */
+    private fun declaration() : Stmt?{
+        try {
+            if(match(TokenType.VAR)) return varDeclaration()
+            return statement()
+        } catch (error : ParserError){
+            synchronize()
+            return null
+        }
+    }
+    /*
+    varDecl     -> "var" IDENTIFIER ( "=" expression)? ";" ;
+    */
+    private fun varDeclaration() : Stmt {
+        val name = consume(TokenType.IDENTIFIER, "Expect variable name.")
+
+        var initializer : Expr? = null;
+
+        if (match(TokenType.EQUAL)){
+            initializer = expression()
+        }
+
+        consume(TokenType.SEMICOLON, "Expect ';' after variable declaration")
+
+        return Stmt.VarStmt(name, initializer)
+    }
+
+    /*
+    expression -> assignment;
+    equality   -> comparison (("==" | "!=") comparison)*;
     */
     fun expression() : Expr{
-        return equality()
+        return assignment()
+    }
+
+    /*
+    assignment -> IDENTIFIER "=" assignment | equality
+    for now we only deal with variable
+    */
+    private fun assignment() : Expr{
+        // parse the l-value
+        val expr = equality()
+        // if meet =, we know that it is an assignment
+        if (match(TokenType.EQUAL)){
+            val equals = previous()
+            // parse the right-hand side
+            val value = assignment()
+            // if expr is also a variable
+            // recall that variable has expression but one Token
+            if(expr as? Expr.Variable != null){
+                val name = expr.name
+                return Expr.Assignment(name,value)
+            }
+            error(equals, "Invalid assignment target")
+        }
+        return expr
+    }
+
+    private fun statement() : Stmt{
+        if (match(TokenType.PRINT)) return printStatement()
+        if (match(TokenType.LEFT_BRACE)) return Stmt.BlockStmt(block())
+
+        return expressionStatement()
+    }
+
+    private fun block() : List<Stmt>{
+        val statements : MutableList<Stmt> = mutableListOf()
+        while (!check(TokenType.RIGHT_BRACE) && !isAtEnd()){
+            // again we can safely ignore null here because the only case it will return a null is statement parse was wrong
+            declaration()?.let { statements.add(it) }
+        }
+        consume(TokenType.RIGHT_BRACE, "Expect '}' after block.")
+        return statements
     }
 
     /*
@@ -125,8 +206,31 @@ class Parser(private val tokens : List<Token>) {
             consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.")
             return Expr.Grouping(expr)
         }
+
+        if (match(TokenType.IDENTIFIER)){
+            return Expr.Variable(previous())
+        }
         // here if no matching, throw exception
         throw error(peek(), "Expect expression.")
+    }
+    /*
+    fun for matching the expression statement grammar
+    exprStmt  -> expression ";" ;
+     */
+    private fun expressionStatement() : Stmt{
+        val expr = expression()
+        consume(TokenType.SEMICOLON, "Except ';' after value")
+        return Stmt.ExpressionStmt(expr)
+    }
+
+    /*
+    fun for matching the expression statement grammar
+    printStmt -> "print" expression ";" ;
+     */
+    private fun printStatement() : Stmt{
+        val expr = expression()
+        consume(TokenType.SEMICOLON, "Except ';' after value")
+        return Stmt.PrintStmt(expr)
     }
 
     /*

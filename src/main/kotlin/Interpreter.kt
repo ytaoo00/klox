@@ -1,5 +1,9 @@
+
 // Here we use Any? because in lox we can possibly have null
-class Interpreter : ExprVisitor<Any?>{
+class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
+    // add an instance of environment
+    var environment = Environment()
+
     override fun visitBinaryExpr(binary: Expr.Binary): Any? {
         val left = evaluate(binary.left)
         val right = evaluate(binary.right)
@@ -158,16 +162,91 @@ class Interpreter : ExprVisitor<Any?>{
     }
 
     /*
-    public API: takes in a syntax tree for an expression and evaluates it.
-    if succeeds, evaluate returns an object for the result value.
+    public API: takes in list of statement syntax tree and evaluate them
      */
-    fun interpret(expression: Expr){
+    fun interpret(statements: List<Stmt>){
         try {
-            val value = evaluate(expression)
-            println(stringify(value))
+            statements.forEach {
+                execute(it)
+            }
         }
         catch (error : RuntimeError){
             Lox.runtimeError(error)
+        }
+    }
+    /*
+    the statement analogue to the evaluate method
+     */
+    private fun execute(stmt: Stmt){
+        stmt.accept(this)
+    }
+
+    /*
+    Evaluate the expression in expression statement
+     */
+    override fun visitExpressionStmt(stmt: Stmt.ExpressionStmt) {
+        evaluate(stmt.expr)
+    }
+
+    /*
+    Evaluate the expression in the print statement tree.
+    Print out the value get directly
+     */
+    override fun visitPrintStmt(stmt: Stmt.PrintStmt) {
+        println(stringify(evaluate(stmt.expr)))
+    }
+    /*
+    forwards to the environment, return the variable or runtime exception
+     */
+    override fun visitVariableExpr(variable: Expr.Variable): Any? {
+        return environment.get(variable.name)
+    }
+
+    /*
+    If the variable has an initializer, we evaluate it.
+    if not, set the variable to null.
+     */
+    override fun visitVarStmt(stmt: Stmt.VarStmt) {
+        var value :Any? = null
+        if (stmt.expr != null){
+            value = evaluate(stmt.expr)
+        }
+
+        environment.define(stmt.name.lexeme, value)
+    }
+
+    override fun visitAssignExpr(assignment: Expr.Assignment): Any? {
+        val value = evaluate(assignment.value)
+        environment.assign(assignment.name,value)
+        return value
+    }
+
+    override fun visitBlockStmt(stmt: Stmt.BlockStmt) {
+        executeBlock(stmt.statements, Environment(environment))
+    }
+
+    /*
+    Manual change and discard environment
+    if we are just about to enter to a block
+    the current block will be outer
+    when we enter the block, we created a new environment
+    the new environment, which pointer to the outer environment
+     */
+    private fun executeBlock(statements: List<Stmt>, environment: Environment){
+        // we store a previous environment, which is the outer environment
+        val previous = this.environment
+        try {
+            // switch the environment to the inner environment
+            this.environment = environment
+
+            // execute the statement inside the block
+            statements.forEach {
+                execute(it)
+            }
+        }finally {
+            // once the execution of the statement inside the environment is done
+            // we discard the inner environment and switch back to the outer environment
+            this.environment = previous
         }
     }
 }

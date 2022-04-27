@@ -6,6 +6,8 @@ interface ExprVisitor<R>{
     fun visitGroupingExpr(grouping: Expr.Grouping) : R
     fun visitUnaryExpr(unary: Expr.Unary) : R
     fun visitLiteralExpr(literal: Expr.Literal) : R
+    fun visitVariableExpr(variable: Expr.Variable) : R
+    fun visitAssignExpr(assignment: Expr.Assignment) : R
 }
 
 //we do not need the abstract class here because a sealed class is abstract by itself
@@ -37,6 +39,20 @@ sealed class Expr{
     class Literal(val value : Any?) : Expr(){
         override fun <R> accept(visitor: ExprVisitor<R>): R {
             return visitor.visitLiteralExpr(this)
+        }
+    }
+
+    //here we treat variable name as an expression
+    class Variable(val name: Token) : Expr(){
+        override fun <R> accept(visitor: ExprVisitor<R>): R {
+            return visitor.visitVariableExpr(this)
+        }
+    }
+
+    //
+    class Assignment(val name: Token, val value : Expr) : Expr(){
+        override fun <R> accept(visitor: ExprVisitor<R>): R {
+            return visitor.visitAssignExpr(this)
         }
     }
 }

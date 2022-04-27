@@ -34,6 +34,12 @@ class AstPrinter : ExprVisitor<String> {
     fun print(expr : Expr) :String{
         return expr.accept(this)
     }
+
+    override fun visitVariableExpr(variable: Expr.Variable): String {
+        TODO("Not yet implemented")
+    }
+
+
 }
 
 fun main() {
