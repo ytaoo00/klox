@@ -36,11 +36,12 @@ class Environment {
     }
 
     /*
-    Assignment is not allowed to create a new variable
+    Assignment  not allowed creation of a new variable
      */
     fun assign(name: Token, value: Any?){
         if(values.containsKey(name.lexeme)){
             values[name.lexeme] = value
+            return
         }
         if (enclosing != null){
             return enclosing.assign(name, value)

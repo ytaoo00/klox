@@ -1,5 +1,3 @@
-import java.io.IOException
-
 class Parser(private val tokens : List<Token>) {
     // pointer to the token to be parsed
     private var current = 0
@@ -60,19 +58,18 @@ class Parser(private val tokens : List<Token>) {
 
     /*
     expression -> assignment;
-    equality   -> comparison (("==" | "!=") comparison)*;
     */
     fun expression() : Expr{
         return assignment()
     }
 
     /*
-    assignment -> IDENTIFIER "=" assignment | equality
+    assignment -> IDENTIFIER "=" assignment | logic_or
     for now we only deal with variable
     */
     private fun assignment() : Expr{
         // parse the l-value
-        val expr = equality()
+        val expr = logicOr()
         // if meet =, we know that it is an assignment
         if (match(TokenType.EQUAL)){
             val equals = previous()
@@ -88,13 +85,131 @@ class Parser(private val tokens : List<Token>) {
         }
         return expr
     }
+    /*
+    logic_or    -> logic_and ( "or" logic_and )* ;
+     */
+    private fun logicOr() : Expr{
+        var expr = logicAnd()
 
+        while (match(TokenType.OR)){
+            val operator = previous()
+            val right = logicAnd()
+            expr = Expr.Logical(expr,operator,right)
+        }
+        return expr
+    }
+
+    /*
+        logic_and   -> equality ( "and" equality )* ;
+     */
+    private fun logicAnd(): Expr{
+        var expr = equality()
+        while (match(TokenType.AND)){
+            val operator = previous()
+            val right = expression()
+            expr = Expr.Logical(expr, operator, right)
+        }
+        return expr
+    }
+    /*
+    statement -> exprStmt | ifStmt | printStmt | block ;
+     */
     private fun statement() : Stmt{
+        // check if printStmt
         if (match(TokenType.PRINT)) return printStatement()
+        // check if block
         if (match(TokenType.LEFT_BRACE)) return Stmt.BlockStmt(block())
-
+        // check if ifStmt
+        if (match(TokenType.IF)) return ifStatement()
+        // check if while statement
+        if (match(TokenType.WHILE)) return whileStatement()
+        // check if for statement
+        if (match(TokenType.FOR)) return forStatement()
         return expressionStatement()
     }
+    /*
+    ifStmt    -> "if" "(" expression ")" statement ("else" statement)? ;
+     */
+    private fun ifStatement() : Stmt{
+        consume(TokenType.LEFT_PAREN, "Expect '(' after if.")
+        val condition = expression()
+        consume(TokenType.RIGHT_PAREN, "Expect ')' after if condition.")
+        val thenBranch = statement()
+        var elseBranch : Stmt? = null
+        if (match(TokenType.ELSE)){
+           elseBranch = statement()
+        }
+        return Stmt.IfStmt(condition,thenBranch,elseBranch)
+    }
+
+    /*
+    whileStmt -> "while" "(" expression ")" statement;
+     */
+    private fun whileStatement(): Stmt{
+        consume(TokenType.LEFT_PAREN, "Expect '(' after while.")
+        val condition = expression()
+        consume(TokenType.RIGHT_PAREN, "Expect ')' after while condition.")
+        val stmt = statement()
+
+        return Stmt.WhileStmt(condition,stmt)
+    }
+
+    /*
+    forStmt     -> "for" "(" ( varDecl | exprStmt | ";")
+                expression? ";"
+                expression? ")" statement;
+     */
+    private fun forStatement() : Stmt{
+        consume(TokenType.LEFT_PAREN, "Expect '(' after For.")
+
+        // initializer
+        val initializer : Stmt? = if (match(TokenType.SEMICOLON)){
+            null
+        } else if (match(TokenType.VAR)){
+            varDeclaration()
+        } else{
+            expressionStatement()
+        }
+
+        // condition
+        var condition : Expr? = if(!check(TokenType.SEMICOLON)){
+            expression()
+        }else{
+            null
+        }
+
+        consume(TokenType.SEMICOLON, "Expect ';' after For Loop Condition.")
+
+        // increment
+        val increment : Expr? = if (!check(TokenType.RIGHT_PAREN)){
+            expression()
+        }else {
+            null
+        }
+        consume(TokenType.RIGHT_PAREN, "Expect ')' after For Loop Clauses.")
+
+        // body
+        var body = statement()
+
+        // transform to block
+        // if increment is not null, we add that to the end
+        if (increment != null){
+            body = Stmt.BlockStmt(listOf(body,Stmt.ExpressionStmt(increment)))
+        }
+        // change condition to while loop condition, if no condition, it is equivalent to while(true)
+        if (condition == null){
+            condition = Expr.Literal(true)
+        }
+        // change body from a block to a while loop
+        body = Stmt.WhileStmt(condition,body)
+        // finally, we add in the var declaration/ expression statement if needed, and enclosed the entire thing into a block statement
+        if (initializer != null){
+            body = Stmt.BlockStmt(listOf(initializer,body))
+        }
+
+        return body
+    }
+
 
     private fun block() : List<Stmt>{
         val statements : MutableList<Stmt> = mutableListOf()

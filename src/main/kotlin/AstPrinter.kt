@@ -1,4 +1,4 @@
-class AstPrinter : ExprVisitor<String> {
+class AstPrinter : ExprVisitor<String>, StmtVisitor<String> {
     override fun visitBinaryExpr(binary: Expr.Binary): String {
         return parenthesize(binary.operator.lexeme, binary.left, binary.right)
     }
@@ -36,6 +36,38 @@ class AstPrinter : ExprVisitor<String> {
     }
 
     override fun visitVariableExpr(variable: Expr.Variable): String {
+        return variable.toString()
+    }
+
+    override fun visitAssignExpr(assignment: Expr.Assignment): String {
+        return parenthesize(assignment.name.lexeme, assignment.value )
+    }
+
+    override fun visitLogicExpr(logic: Expr.Logical): String {
+        return parenthesize(logic.operator.lexeme, logic.left,logic.right)
+    }
+
+    override fun visitExpressionStmt(stmt: Stmt.ExpressionStmt): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun visitPrintStmt(stmt: Stmt.PrintStmt): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun visitVarStmt(stmt: Stmt.VarStmt): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun visitBlockStmt(stmt: Stmt.BlockStmt): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun visitIfStmt(stmt: Stmt.IfStmt): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun visitWhileStmt(stmt: Stmt.WhileStmt): String {
         TODO("Not yet implemented")
     }
 

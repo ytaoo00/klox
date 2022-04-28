@@ -8,6 +8,7 @@ interface ExprVisitor<R>{
     fun visitLiteralExpr(literal: Expr.Literal) : R
     fun visitVariableExpr(variable: Expr.Variable) : R
     fun visitAssignExpr(assignment: Expr.Assignment) : R
+    fun visitLogicExpr(logic: Expr.Logical) : R
 }
 
 //we do not need the abstract class here because a sealed class is abstract by itself
@@ -53,6 +54,12 @@ sealed class Expr{
     class Assignment(val name: Token, val value : Expr) : Expr(){
         override fun <R> accept(visitor: ExprVisitor<R>): R {
             return visitor.visitAssignExpr(this)
+        }
+    }
+
+    class Logical(val left: Expr, val operator: Token, val right: Expr) : Expr(){
+        override fun <R> accept(visitor: ExprVisitor<R>): R {
+            return visitor.visitLogicExpr(this)
         }
     }
 }

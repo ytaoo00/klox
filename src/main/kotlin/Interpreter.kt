@@ -4,6 +4,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
     // add an instance of environment
     var environment = Environment()
 
+
     override fun visitBinaryExpr(binary: Expr.Binary): Any? {
         val left = evaluate(binary.left)
         val right = evaluate(binary.right)
@@ -200,6 +201,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
      */
     override fun visitVariableExpr(variable: Expr.Variable): Any? {
         return environment.get(variable.name)
+
     }
 
     /*
@@ -247,6 +249,45 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
             // once the execution of the statement inside the environment is done
             // we discard the inner environment and switch back to the outer environment
             this.environment = previous
+        }
+
+    }
+
+    override fun visitIfStmt(stmt: Stmt.IfStmt) {
+        if (isTruthy(evaluate(stmt.condition))){
+            execute(stmt.thenBranch)
+        }
+        else if (stmt.elseBranch != null){
+            execute(stmt.elseBranch)
+        }
+    }
+
+    override fun visitLogicExpr(logic: Expr.Logical): Any? {
+        // this is interesting.
+        // first evaluate the left side
+        val left = evaluate(logic.left)
+        // if operator is OR
+        if (logic.operator.type == TokenType.OR){
+            // if left is true, we do not need to evaluate right side, since True or anything will be true
+            if (isTruthy(left)) {
+                return left
+            }
+        }
+        // if operator is And
+        else{
+            // if left is not true, again we do not need to evaluate right, since False and anything will be False.
+            if (!isTruthy(left)){
+                return left
+            }
+        }
+        // here the two case is, Or operator and left is false, therefore if right is true we return true if right is false we return false
+        // And operator and left side is true, therefore again if right is true we return true if right is false we return false
+        return evaluate(logic.right)
+    }
+
+    override fun visitWhileStmt(stmt: Stmt.WhileStmt) {
+        while (isTruthy(evaluate(stmt.condition))){
+            execute(stmt.statement)
         }
     }
 }

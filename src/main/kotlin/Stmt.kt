@@ -8,6 +8,8 @@ interface StmtVisitor<R>{
     fun visitPrintStmt(stmt: Stmt.PrintStmt) : R
     fun visitVarStmt(stmt: Stmt.VarStmt) : R
     fun visitBlockStmt(stmt: Stmt.BlockStmt) : R
+    fun visitIfStmt(stmt: Stmt.IfStmt) : R
+    fun visitWhileStmt(stmt: Stmt.WhileStmt) : R
 }
 
 // essentially an abstract class
@@ -36,6 +38,18 @@ sealed class Stmt {
     class BlockStmt(val statements: List<Stmt>) : Stmt() {
         override fun <R> accept(visitor: StmtVisitor<R>): R {
             return visitor.visitBlockStmt(this)
+        }
+    }
+
+    class IfStmt(val condition: Expr, val thenBranch: Stmt, val elseBranch: Stmt?) : Stmt(){
+        override fun <R> accept(visitor: StmtVisitor<R>) : R{
+            return visitor.visitIfStmt(this)
+        }
+    }
+
+    class WhileStmt(val condition: Expr, val statement: Stmt): Stmt(){
+        override fun <R> accept(visitor: StmtVisitor<R>): R {
+            return visitor.visitWhileStmt(this)
         }
     }
 }
