@@ -1,9 +1,27 @@
 
 // Here we use Any? because in lox we can possibly have null
 class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
-    // add an instance of environment
-    var environment = Environment()
+    // hold a fixed reference to the global(outermost environment)
+    val globals = Environment()
+    // this is the current environment
+    private var environment = globals
 
+    constructor(){
+        globals.define("clock",object :LoxCallable{
+            override fun arity(): Int {
+                return 0
+            }
+
+            override fun call(interpreter: Interpreter, arguments: List<Any?>): Any? {
+                return System.currentTimeMillis() / 1000.0
+            }
+
+            override fun toString(): String {
+                return "<native function>"
+            }
+
+        })
+    }
 
     override fun visitBinaryExpr(binary: Expr.Binary): Any? {
         val left = evaluate(binary.left)
@@ -234,7 +252,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
     when we enter the block, we created a new environment
     the new environment, which pointer to the outer environment
      */
-    private fun executeBlock(statements: List<Stmt>, environment: Environment){
+    fun executeBlock(statements: List<Stmt>, environment: Environment){
         // we store a previous environment, which is the outer environment
         val previous = this.environment
         try {
@@ -289,5 +307,49 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
         while (isTruthy(evaluate(stmt.condition))){
             execute(stmt.statement)
         }
+    }
+
+    override fun visitCallExpr(call: Expr.Call): Any? {
+        //get callee ready
+        val callee = evaluate(call.callee)
+
+        val arguments = mutableListOf<Any?>()
+        // get each argument ready
+        call.arguments.forEach {
+            arguments.add(evaluate(it))
+        }
+        //safe type cast callee to Loxcallable
+        if (callee as? LoxCallable == null) {
+            throw RuntimeError(call.paren, "Can only call functions and classes")
+        }
+
+        if (arguments.size != callee.arity()){
+            throw RuntimeError(call.paren, "Expected ${callee.arity()} arguments but got ${arguments.size}.")
+        }
+
+        return callee.call(this, arguments)
+
+    }
+
+
+    override fun visitFunctionStmt(stmt: Stmt.FunctionStmt) {
+        // take a function syntax node -- a compile time representation of the function-- and convert it to its runtime representation
+        // we also pass in the environment variable
+        // imaging in the context of block
+        // this is going to be the outer environment
+        val function = LoxFunction(stmt, environment)
+        // here we create a new binding of the resulting object to a new variable in the current environment.
+        environment.define(stmt.name.lexeme, function)
+    }
+
+    override fun visitReturnStmt(stmt: Stmt.ReturnStmt) {
+        // here we initialize the return value to null
+        var value : Any? = null
+        // if the return value expression is not null, we evaluate it
+        if (stmt.expr!= null){
+            value = evaluate(stmt.expr)
+        }
+        // then we return the return value
+        throw Return(value)
     }
 }

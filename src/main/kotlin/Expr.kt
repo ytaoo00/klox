@@ -9,6 +9,7 @@ interface ExprVisitor<R>{
     fun visitVariableExpr(variable: Expr.Variable) : R
     fun visitAssignExpr(assignment: Expr.Assignment) : R
     fun visitLogicExpr(logic: Expr.Logical) : R
+    fun visitCallExpr(call: Expr.Call) : R
 }
 
 //we do not need the abstract class here because a sealed class is abstract by itself
@@ -60,6 +61,13 @@ sealed class Expr{
     class Logical(val left: Expr, val operator: Token, val right: Expr) : Expr(){
         override fun <R> accept(visitor: ExprVisitor<R>): R {
             return visitor.visitLogicExpr(this)
+        }
+    }
+
+    //we need the closing parenthesis as this helps us use that token's location when we report a runtime error caused by a function call.
+    class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>) : Expr(){
+        override fun <R> accept(visitor: ExprVisitor<R>): R {
+            return visitor.visitCallExpr(this)
         }
     }
 }

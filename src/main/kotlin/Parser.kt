@@ -28,17 +28,41 @@ class Parser(private val tokens : List<Token>) {
     }
 
     /*
-    declaration -> varDecl | statement ;
+    declaration -> funDecl | varDecl | statement ;
     */
     private fun declaration() : Stmt?{
         try {
             if(match(TokenType.VAR)) return varDeclaration()
+            // remember we plan on reusing the function rule to class as well...
+            if (match(TokenType.FUN)) return function("function")
             return statement()
         } catch (error : ParserError){
             synchronize()
             return null
         }
     }
+
+    private fun function(kind : String) : Stmt.FunctionStmt{
+        // consume the function name, if not report an error
+        val name = consume(TokenType.IDENTIFIER, "Expect $kind name.")
+        consume(TokenType.LEFT_PAREN, "Expect '(' after + $kind name.")
+        val parameters = mutableListOf<Token>()
+        if (!check(TokenType.RIGHT_PAREN)){
+            do {
+                if (parameters.size >= 255){
+                    error(peek(), "Can't have more than 255 parameters.")
+                }
+                parameters.add(
+                    consume(TokenType.IDENTIFIER, "Expect parameter name.")
+                )
+            } while (match(TokenType.COMMA))
+        }
+        consume(TokenType.RIGHT_PAREN, "Expect ')' after parameters.")
+        consume(TokenType.LEFT_BRACE, "Expect '{' before $kind body.")
+        val body = block()
+        return Stmt.FunctionStmt(name,parameters,body)
+    }
+
     /*
     varDecl     -> "var" IDENTIFIER ( "=" expression)? ";" ;
     */
@@ -125,8 +149,26 @@ class Parser(private val tokens : List<Token>) {
         if (match(TokenType.WHILE)) return whileStatement()
         // check if for statement
         if (match(TokenType.FOR)) return forStatement()
+        // check if return Statement
+        if (match(TokenType.RETURN)) return returnStatement()
         return expressionStatement()
     }
+
+    /*
+    return -> "return" expression? ";"
+     */
+    private fun returnStatement() : Stmt{
+        val keyword = previous()
+        var value : Expr? = null
+        if (!check(TokenType.SEMICOLON)){
+            value = expression()
+        }
+
+        consume(TokenType.SEMICOLON, "Expect ';' after return value.")
+        return Stmt.ReturnStmt(keyword,value)
+    }
+
+
     /*
     ifStmt    -> "if" "(" expression ")" statement ("else" statement)? ;
      */
@@ -285,7 +327,7 @@ class Parser(private val tokens : List<Token>) {
     }
     /*
         fun for "matching" the non-terminal grammar
-        unary      -> ("!" | "-") unary | primary;
+        unary -> ("!" | "-") unary | call ;
     */
     private fun unary() : Expr{
         if(match(TokenType.BANG, TokenType.MINUS)){
@@ -293,7 +335,55 @@ class Parser(private val tokens : List<Token>) {
             val right = unary()
             return Expr.Unary(operator,right)
         }
-        return primary()
+        return call()
+    }
+
+    /*
+    call  -> primary ( "(" arguments? ")" )*;
+    Notice the code is not exact match of the grammar
+     */
+    private fun call() : Expr{
+        // match the primary
+        var expr = primary()
+
+        // each time we see a (, we call finishCall() to parse the call expression using the previously parsed expression as the callee.
+        // we change the expr to be returned to the new express. and we loop to see if the result is itself called.
+        while (true){
+            if (match(TokenType.LEFT_PAREN)){
+                expr = finishCall(expr)
+            }
+            else{
+                break
+            }
+        }
+        return expr
+    }
+
+    /*
+    arguments -> expression ( "," expression )* ;
+    again not the exact match.
+    we also handled the zero argument case here.
+     */
+    private fun finishCall(callee: Expr) : Expr{
+        val arguments = mutableListOf<Expr>()
+        // check if the next token is ), if so, we can end
+        // if no argument get stored, then we are in the case of no argument functions.
+        if (!check(TokenType.RIGHT_PAREN)){
+            // if not, then we are always going to parse and expression, and then parse one comma, nature to use the do while loop.
+            do {
+                if (arguments.size >= 255){
+                    // reports an error but not throw it, because here the parser is still in perfectly valid state.
+                    // so it can keep going.
+                    error(peek(), "Can't have more than 255 arguments")
+                }
+                arguments.add(expression())
+            } while (match(TokenType.COMMA))
+        }
+
+        val paren = consume(TokenType.RIGHT_PAREN, "Expect ')' after argument")
+
+        // wrap the callee and those arguments up into a call AST node.
+        return Expr.Call(callee, paren, arguments)
     }
 
     /*

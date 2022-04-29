@@ -71,6 +71,18 @@ class AstPrinter : ExprVisitor<String>, StmtVisitor<String> {
         TODO("Not yet implemented")
     }
 
+    override fun visitCallExpr(call: Expr.Call): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun visitFunctionStmt(stmt: Stmt.FunctionStmt): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun visitReturnStmt(stmt: Stmt.ReturnStmt): String {
+        TODO("Not yet implemented")
+    }
+
 
 }
 
