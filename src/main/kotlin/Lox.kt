@@ -68,6 +68,9 @@ class Lox {
             // stop of syntax errors
             if (hadError) return
 
+            val resolver = Resolver(interpreter)
+            resolver.resolve(statements)
+            if (hadError) return
             interpreter.interpret(statements)
 
 //            println(expression?.let { AstPrinter().print(it) })

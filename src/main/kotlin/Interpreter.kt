@@ -6,13 +6,17 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
     // this is the current environment
     private var environment = globals
 
+    // map that associates each syntax tree node with its resolved data.
+    private var locals : MutableMap<Expr,Int> = mutableMapOf()
+
+
     constructor(){
         globals.define("clock",object :LoxCallable{
             override fun arity(): Int {
                 return 0
             }
 
-            override fun call(interpreter: Interpreter, arguments: List<Any?>): Any? {
+            override fun call(interpreter: Interpreter, arguments: List<Any?>): Any {
                 return System.currentTimeMillis() / 1000.0
             }
 
@@ -21,6 +25,13 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
             }
 
         })
+    }
+
+    /*
+    receiver of the resolver's result
+     */
+    fun resolve(expr: Expr, depth : Int){
+        locals[expr] = depth
     }
 
     override fun visitBinaryExpr(binary: Expr.Binary): Any? {
@@ -215,11 +226,27 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
         println(stringify(evaluate(stmt.expr)))
     }
     /*
-    forwards to the environment, return the variable or runtime exception
+    forwards to the resolved variables
      */
     override fun visitVariableExpr(variable: Expr.Variable): Any? {
-        return environment.get(variable.name)
+        return lookUpvariable(variable.name, variable)
+    }
 
+    /*
+    look up the resolved distance in the map.
+     */
+    private fun lookUpvariable(name: Token, expr: Expr) : Any?{
+        val distance = locals[expr]
+        // we resolved only local variables.
+        //if we do get a distance, we have a local variable
+        return if (distance!= null){
+            //take advantagbe of the results of our static analysis.
+            environment.getAt(distance, name.lexeme)
+        }
+        //if we do not have a distance, we assume it is a global variable
+        else{
+            globals.get(name)
+        }
     }
 
     /*
@@ -235,9 +262,18 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
         environment.define(stmt.name.lexeme, value)
     }
 
+    /*
+    similar idea as variable expression
+     */
     override fun visitAssignExpr(assignment: Expr.Assignment): Any? {
         val value = evaluate(assignment.value)
-        environment.assign(assignment.name,value)
+        val distance = locals.get(assignment)
+        if (distance != null){
+            environment.assignAt(distance,assignment.name, value)
+        }else{
+            globals.assign(assignment.name, value)
+        }
+
         return value
     }
 
