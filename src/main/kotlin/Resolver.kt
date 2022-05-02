@@ -4,7 +4,7 @@ class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Uni
     }
 
     enum class ClassType{
-        NONE, CLASS
+        NONE, CLASS, SUBCLASS
     }
 
     private val scopes : ArrayDeque<MutableMap<String,Boolean>> = ArrayDeque()
@@ -189,6 +189,21 @@ class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Uni
         // resolve the function name
         declare(stmt.name)
         define(stmt.name)
+        // one small edge case is the class inherited from itself, we want to prohibit it.
+        if (stmt.superclass != null && stmt.name.lexeme == stmt.superclass.name.lexeme){
+            Lox.error(stmt.superclass.name, "A class can't inherit from itself.")
+        }
+        // resolve superclass if not null
+        if (stmt.superclass != null){
+            currentClass = ClassType.SUBCLASS
+            resolve(stmt.superclass)
+        }
+        // if the class declaration has a superclass, then we create a new scope surrounding all of its methods.
+        if (stmt.superclass != null){
+            beginScope()
+            scopes.last().put("super", true)
+        }
+
         // what we want to do is whenever a this expression is encoutnered, it will resolve to a "local variable" defined in an implicit scope just outside of the block for the method body.
         // we push a new scope
         beginScope()
@@ -203,6 +218,10 @@ class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Uni
             resolveFunction(method, declaration)
         }
         endScope()
+        //once we are done resolving the class's method, we discard that scope
+        if (stmt.superclass != null){
+            endScope()
+        }
         currentClass = enclosingClass
     }
 
@@ -226,5 +245,17 @@ class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Uni
             return
         }
         resolveLocal(thisExpr, thisExpr.keyword)
+    }
+
+    // resolve the super token exactly as if it were a variable
+    // the resolution stores the number of hops along the environment chain that the interpreter needs to walk to find the environment where the superclass is stored.
+    override fun visitSuperExpr(superExpr: Expr.Super) {
+        if (currentClass == ClassType.NONE){
+            Lox.error(superExpr.keyword, "Can't use 'super' outside of a class.")
+        }
+        else if (currentClass != ClassType.SUBCLASS){
+            Lox.error(superExpr.keyword, "Can't use 'super' in a class with no superclass.")
+        }
+        resolveLocal(superExpr, superExpr.keyword)
     }
 }

@@ -13,6 +13,7 @@ interface ExprVisitor<R>{
     fun visitGetExpr(getExpr: Expr.Get) : R
     fun visitSetExpr(setExpr: Expr.Set) : R
     fun visitThisExpr(thisExpr: Expr.This) : R
+    fun visitSuperExpr(superExpr : Expr.Super) : R
 }
 
 //we do not need the abstract class here because a sealed class is abstract by itself
@@ -95,7 +96,12 @@ sealed class Expr{
         override fun <R> accept(visitor: ExprVisitor<R>): R {
             return visitor.visitThisExpr(this)
         }
+    }
 
+    class Super(val keyword: Token, val method : Token) : Expr(){
+        override fun <R> accept(visitor: ExprVisitor<R>): R {
+            return visitor.visitSuperExpr(this)
+        }
     }
 }
 

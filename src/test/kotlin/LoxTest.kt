@@ -68,10 +68,10 @@ class LoxTest(val paramOne: String, val paramTwo : String, val paramThree: Strin
             "scanning",
             "expressions",
             "benchmark",
-            "class",
-            "inheritance",
-            "regression",
-            "super"
+//            "class",
+//            "inheritance",
+//            "regression",
+//            "super"
         )
 
 

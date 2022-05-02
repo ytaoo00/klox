@@ -1,5 +1,5 @@
 class Environment {
-    private val enclosing: Environment?
+    val enclosing: Environment?
 
     //constructor for global scope's environment, which ends the chain
     constructor() {

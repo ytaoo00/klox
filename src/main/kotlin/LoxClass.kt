@@ -1,5 +1,5 @@
 // lox class handles behavior(methods) where an instance stores state.
-class LoxClass(val name: String, val methods : Map<String, LoxFunction>) : LoxCallable {
+class LoxClass(val name: String, val superclass: LoxClass?, val methods: Map<String, LoxFunction>) : LoxCallable {
 
     override fun arity(): Int {
         val initializer = findMethod("init")
@@ -26,6 +26,10 @@ class LoxClass(val name: String, val methods : Map<String, LoxFunction>) : LoxCa
     fun findMethod(name: String) : LoxFunction?{
         if (methods.containsKey(name)){
             return methods[name]
+        }
+        // here we implicitly chained the findMethod function
+        if(superclass!= null){
+            return superclass.findMethod(name)
         }
         return null
     }

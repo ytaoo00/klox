@@ -99,6 +99,10 @@ class AstPrinter : ExprVisitor<String>, StmtVisitor<String> {
         TODO("Not yet implemented")
     }
 
+    override fun visitSuperExpr(superExpr: Expr.Super): String {
+        TODO("Not yet implemented")
+    }
+
 
 }
 

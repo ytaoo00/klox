@@ -393,10 +393,23 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
     }
 
     override fun visitClassStmt(stmt: Stmt.ClassStmt) {
+        // first we check if this class has a super class
+        var superclass: Any? = null
+        if (stmt.superclass != null){
+            superclass = evaluate(stmt.superclass)
+            if (superclass as? LoxClass == null){
+                throw RuntimeError(stmt.superclass.name, "Superclass must be a class.")
+            }
+        }
         //declare the class's name in the current environment.
         // we do not direct binding the name and the class reference because we need to use that reference in later stage.
         environment.define(stmt.name.lexeme,null)
 
+        // create an new environment
+        if (stmt.superclass != null){
+            environment = Environment(environment)
+            environment.define("super", superclass)
+        }
         // turn the method AST into its runtime representation
         val methods : MutableMap<String, LoxFunction> = mutableMapOf()
         stmt.methods.forEach { method->
@@ -404,8 +417,13 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
             val function = LoxFunction(method,environment,method.name.lexeme == "init")
             methods[method.name.lexeme] = function
         }
+        if (superclass != null){
+            // if super class is not null, then it has an enclosing
+            environment = environment.enclosing!!
+        }
+
         // turn the class syntax node into a LoxClass, the runtime representation of a class
-        val klass = LoxClass(stmt.name.lexeme, methods)
+        val klass = LoxClass(stmt.name.lexeme, superclass as? LoxClass , methods)
         //circle back and store the class object in the variable we previously declared
         environment.assign(stmt.name, klass)
 
@@ -436,5 +454,16 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
 
     override fun visitThisExpr(thisExpr: Expr.This): Any? {
         return lookUpvariable(thisExpr.keyword, thisExpr)
+    }
+    // check get expression for reference
+    override fun visitSuperExpr(superExpr: Expr.Super): Any? {
+        val distance = locals[superExpr]
+        val superclass = distance?.let { environment.getAt(it, "super") } as LoxClass
+        val obj = environment.getAt((distance.minus(1)), "this") as LoxInstance
+        val method = superclass.findMethod(superExpr.method.lexeme)
+        if (method == null){
+            throw RuntimeError(superExpr.method, "Undefined property '${superExpr.method.lexeme}'.")
+        }
+        return method.bind(obj)
     }
 }
