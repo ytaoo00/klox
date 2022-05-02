@@ -21,7 +21,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
             }
 
             override fun toString(): String {
-                return "<native function>"
+                return "<native fn>"
             }
 
         })
@@ -59,7 +59,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
                     left + right
                 }
                 else {
-                    throw RuntimeError(binary.operator, "Operands must be two number or two String")
+                    throw RuntimeError(binary.operator, "Operands must be two numbers or two strings.")
                 }
             }
             TokenType.SLASH -> {
@@ -70,7 +70,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
                 checkNumberOperands(binary.operator,left,right)
                 (left as Double) * (right as Double)
             }
-            TokenType.BANG_EQUAL -> isEqual(left,right)
+            TokenType.BANG_EQUAL -> !isEqual(left,right)
             TokenType.EQUAL_EQUAL -> isEqual(left,right)
             TokenType.GREATER -> {
                 checkNumberOperands(binary.operator,left,right)
@@ -112,7 +112,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
                 // first we check if the expression is number
                 checkNumberOperand(unary.operator,right)
                 // since we have checked, we know the cast is always safe
-                right as Double
+                -(right as Double)
             }
             TokenType.BANG -> !isTruthy(right)
 
@@ -142,10 +142,13 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
     for Lox in particular, false and nil are false, everything else is truthy.
      */
     private fun isTruthy(any: Any?) : Boolean{
-        // safe cast to boolean, if error happens during parse, return null
-        val value = any as? Boolean
-        // if value is not null, return value, else return false
-        return value ?: false
+        if (any as? Boolean != null){
+            return any
+        }
+        if (any != null){
+            return true
+        }
+        return false
     }
 
     /*
@@ -154,7 +157,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
      */
     private fun checkNumberOperand(operator: Token, operand: Any?) {
         if (operand as? Double != null) return
-        throw RuntimeError(operator,"Operand must be a number")
+        throw RuntimeError(operator,"Operand must be a number.")
     }
 
     /*
@@ -163,13 +166,13 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
      */
     private fun checkNumberOperands(operator: Token, left: Any?, right: Any?) {
         if (left as? Double != null && right as? Double != null) return
-        throw RuntimeError(operator,"Operand must be a number")
+        throw RuntimeError(operator,"Operands must be numbers.")
     }
 
     /*
     helper method: the author is using java, so by using a.equals(b), he wants to make sure that a is not null
     Otherwise he will get a null pointer exception
-    In kotlin I think we are fine.
+    In kotlin the == is compiled to equals, whereas === is equivalent of java's ==.
      */
     private fun isEqual(left: Any?, right: Any?) : Boolean{
         return left == right
@@ -267,7 +270,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
      */
     override fun visitAssignExpr(assignment: Expr.Assignment): Any? {
         val value = evaluate(assignment.value)
-        val distance = locals.get(assignment)
+        val distance = locals[assignment]
         if (distance != null){
             environment.assignAt(distance,assignment.name, value)
         }else{
@@ -356,7 +359,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
         }
         //safe type cast callee to Loxcallable
         if (callee as? LoxCallable == null) {
-            throw RuntimeError(call.paren, "Can only call functions and classes")
+            throw RuntimeError(call.paren, "Can only call functions and classes.")
         }
 
         if (arguments.size != callee.arity()){
@@ -373,7 +376,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
         // we also pass in the environment variable
         // imaging in the context of block
         // this is going to be the outer environment
-        val function = LoxFunction(stmt, environment)
+        val function = LoxFunction(stmt, environment, false)
         // here we create a new binding of the resulting object to a new variable in the current environment.
         environment.define(stmt.name.lexeme, function)
     }
@@ -387,5 +390,51 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
         }
         // then we return the return value
         throw Return(value)
+    }
+
+    override fun visitClassStmt(stmt: Stmt.ClassStmt) {
+        //declare the class's name in the current environment.
+        // we do not direct binding the name and the class reference because we need to use that reference in later stage.
+        environment.define(stmt.name.lexeme,null)
+
+        // turn the method AST into its runtime representation
+        val methods : MutableMap<String, LoxFunction> = mutableMapOf()
+        stmt.methods.forEach { method->
+            // check if the method is init
+            val function = LoxFunction(method,environment,method.name.lexeme == "init")
+            methods[method.name.lexeme] = function
+        }
+        // turn the class syntax node into a LoxClass, the runtime representation of a class
+        val klass = LoxClass(stmt.name.lexeme, methods)
+        //circle back and store the class object in the variable we previously declared
+        environment.assign(stmt.name, klass)
+
+    }
+
+    override fun visitGetExpr(getExpr: Expr.Get): Any? {
+        // evaluate the expression whose property is being accessed
+        val obj = evaluate(getExpr.obj)
+        // if the object is a loxInstance
+        if (obj as? LoxInstance != null){
+            // look up the property
+            return obj.get(getExpr.name)
+        }
+        // Lox only instances of class have properties
+        throw RuntimeError(getExpr.name, "Only instances have properties.")
+    }
+
+    override fun visitSetExpr(setExpr: Expr.Set): Any? {
+        val obj = evaluate(setExpr.obj)
+
+        if (obj as? LoxInstance == null){
+            throw RuntimeError(setExpr.name, "Only instances have fields.")
+        }
+        val value = evaluate(setExpr.value)
+        obj.set(setExpr.name, value)
+        return value
+    }
+
+    override fun visitThisExpr(thisExpr: Expr.This): Any? {
+        return lookUpvariable(thisExpr.keyword, thisExpr)
     }
 }

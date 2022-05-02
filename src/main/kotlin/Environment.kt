@@ -61,7 +61,7 @@ class Environment {
         if (enclosing != null){
             return enclosing.get(name)
         }
-        throw  RuntimeError(name, "Undefined variable \"${name.lexeme}\".")
+        throw RuntimeError(name, "Undefined variable '${name.lexeme}'.")
     }
 
     /*
@@ -75,6 +75,6 @@ class Environment {
         if (enclosing != null){
             return enclosing.assign(name, value)
         }
-        throw RuntimeError(name, "Undefined variable ${name.lexeme}. ")
+        throw RuntimeError(name, "Undefined variable '${name.lexeme}'.")
     }
 }

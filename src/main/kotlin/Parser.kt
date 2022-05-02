@@ -28,19 +28,37 @@ class Parser(private val tokens : List<Token>) {
     }
 
     /*
-    declaration -> funDecl | varDecl | statement ;
+    declaration -> classDecl | funDecl | varDecl | statement ;
     */
     private fun declaration() : Stmt?{
         try {
             if(match(TokenType.VAR)) return varDeclaration()
             // remember we plan on reusing the function rule to class as well...
             if (match(TokenType.FUN)) return function("function")
+            if (match(TokenType.CLASS)) return classDeclaration()
             return statement()
         } catch (error : ParserError){
             synchronize()
             return null
         }
     }
+
+    /*
+    classDecl   -> "class" IDENTIFIER "{" function* "}" ;
+     */
+    private fun classDeclaration() : Stmt.ClassStmt{
+        val name = consume(TokenType.IDENTIFIER, "Expect class name.")
+        consume(TokenType.LEFT_BRACE, "Expect '{' before class body.")
+
+        val methods = mutableListOf<Stmt.FunctionStmt>()
+        while (!check(TokenType.RIGHT_BRACE) && !isAtEnd()){
+            methods.add(function("method"))
+        }
+
+        consume(TokenType.RIGHT_BRACE, "Expect '}' after class body.")
+        return Stmt.ClassStmt(name, methods)
+    }
+
 
     private fun function(kind : String) : Stmt.FunctionStmt{
         // consume the function name, if not report an error
@@ -88,7 +106,7 @@ class Parser(private val tokens : List<Token>) {
     }
 
     /*
-    assignment -> IDENTIFIER "=" assignment | logic_or
+    assignment -> ( call "." )? IDENTIFIER "=" assignment | logic_or
     for now we only deal with variable
     */
     private fun assignment() : Expr{
@@ -105,7 +123,13 @@ class Parser(private val tokens : List<Token>) {
                 val name = expr.name
                 return Expr.Assignment(name,value)
             }
-            error(equals, "Invalid assignment target")
+            // here see the trick?
+            // if the left hand is going be parsed as get until it see the =
+            // we know that it must be actually a setter
+            else if (expr as? Expr.Get != null){
+                return Expr.Set(expr.obj, expr.name, value)
+            }
+            error(equals, "Invalid assignment target.")
         }
         return expr
     }
@@ -339,7 +363,7 @@ class Parser(private val tokens : List<Token>) {
     }
 
     /*
-    call  -> primary ( "(" arguments? ")" )*;
+    call  -> primary ( "(" arguments? ")" | "." IDENTIFIER )*;
     Notice the code is not exact match of the grammar
      */
     private fun call() : Expr{
@@ -351,6 +375,10 @@ class Parser(private val tokens : List<Token>) {
         while (true){
             if (match(TokenType.LEFT_PAREN)){
                 expr = finishCall(expr)
+            }
+            else if (match(TokenType.DOT)){
+                val name = consume(TokenType.IDENTIFIER, "Expect property name after '.'.")
+                expr = Expr.Get(expr,name)
             }
             else{
                 break
@@ -374,7 +402,7 @@ class Parser(private val tokens : List<Token>) {
                 if (arguments.size >= 255){
                     // reports an error but not throw it, because here the parser is still in perfectly valid state.
                     // so it can keep going.
-                    error(peek(), "Can't have more than 255 arguments")
+                    error(peek(), "Can't have more than 255 arguments.")
                 }
                 arguments.add(expression())
             } while (match(TokenType.COMMA))
@@ -415,6 +443,11 @@ class Parser(private val tokens : List<Token>) {
         if (match(TokenType.IDENTIFIER)){
             return Expr.Variable(previous())
         }
+
+        if (match(TokenType.THIS)){
+            return Expr.This(previous())
+        }
+
         // here if no matching, throw exception
         throw error(peek(), "Expect expression.")
     }

@@ -94,7 +94,8 @@ class Lox {
         * Helper function for error reporting
          */
         private fun report(line: Int, where: String, message: String){
-            println("[line $line] Error $where : $message")
+            // here use STD.ERR
+            System.err.println("[line $line] Error$where: $message")
             hadError = true
         }
 
@@ -106,7 +107,7 @@ class Lox {
                 report(token.line, " at end", message)
             }
             else{
-                report(token.line, " at ${token.lexeme}", message)
+                report(token.line, " at '" + token.lexeme + "'", message);
             }
         }
 
@@ -114,7 +115,7 @@ class Lox {
         Helper function: handle the runtime error while evaluating the expression
          */
         fun runtimeError(error : RuntimeError){
-            println(error.message + "\n[line ${error.token.line}]")
+            System.err.println(error.message + "\n[line ${error.token.line}]")
             hadRuntimeError = true
         }
 

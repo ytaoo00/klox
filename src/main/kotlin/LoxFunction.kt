@@ -1,4 +1,13 @@
-class LoxFunction(private val declaration: Stmt.FunctionStmt, val closure : Environment) : LoxCallable {
+class LoxFunction(private val declaration: Stmt.FunctionStmt, val closure : Environment, val isInitializer: Boolean) : LoxCallable {
+    fun bind(instance: LoxInstance) : LoxFunction{
+        // create a new environment nestled inside the method's original closure
+        val environment = Environment(closure)
+        // declare "this" as a variable in that environment and bind it to the given instance
+        environment.define("this", instance)
+        // now the returned LoxFunction now carrries around its own persistent world where "this" is bound to the object.
+        return LoxFunction(declaration, environment, isInitializer)
+    }
+
     override fun arity(): Int {
         return declaration.params.size
     }
@@ -15,15 +24,18 @@ class LoxFunction(private val declaration: Stmt.FunctionStmt, val closure : Envi
         try {
             interpreter.executeBlock(declaration.body,environment)
         }catch (returnValue : Return){
+            if (isInitializer) return closure.getAt(0,"this")
             return returnValue.value
         }
+        // if the function is an initializer, we override the actual return value and forcibly return this.
+        if (isInitializer) return closure.getAt(0,"this")
         // if it never catches one of these exception, it means the function reached the end of its body without hitting a return statement.
         // implicitly return null.
         return null
     }
 
     override fun toString(): String {
-        return "<fn ${declaration.name.lexeme} >"
+        return "<fn ${declaration.name.lexeme}>"
     }
 
 }

@@ -12,6 +12,7 @@ interface StmtVisitor<R>{
     fun visitWhileStmt(stmt: Stmt.WhileStmt) : R
     fun visitFunctionStmt(stmt: Stmt.FunctionStmt) : R
     fun visitReturnStmt(stmt: Stmt.ReturnStmt) : R
+    fun visitClassStmt(stmt: Stmt.ClassStmt) : R
 }
 
 // essentially an abstract class
@@ -65,5 +66,12 @@ sealed class Stmt {
         override fun <R> accept(visitor: StmtVisitor<R>): R {
             return visitor.visitReturnStmt(this)
         }
+    }
+
+    class ClassStmt(val name: Token, val methods : List<FunctionStmt>) : Stmt(){
+        override fun <R> accept(visitor: StmtVisitor<R>): R {
+            return visitor.visitClassStmt(this)
+        }
+
     }
 }

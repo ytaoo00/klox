@@ -1,11 +1,16 @@
 class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Unit> {
     enum class FunctionType{
-        None, Function
+        NONE, Function, METHOD, INITIALIZER
+    }
+
+    enum class ClassType{
+        NONE, CLASS
     }
 
     private val scopes : ArrayDeque<MutableMap<String,Boolean>> = ArrayDeque()
     // track whether or not the code we are currently visiting is inside a function declaration
-    private var currentFunction : FunctionType = FunctionType.None
+    private var currentFunction : FunctionType = FunctionType.NONE
+    private var currentClass : ClassType = ClassType.NONE
 
     override fun visitBinaryExpr(binary: Expr.Binary) {
         resolve(binary.left)
@@ -28,7 +33,7 @@ class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Uni
         // if the variable exists in the current scope but its value is false,
         // it means we have declared it but not yet defined it
         if (!scopes.isEmpty() && scopes.last()[variable.name.lexeme] == false){
-            Lox.error(variable.name, "Cannot read local variable in its own initializer.")
+            Lox.error(variable.name, "Can't read local variable in its own initializer.")
         }
 
         resolveLocal(variable, variable.name)
@@ -148,7 +153,7 @@ class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Uni
         resolveFunction(stmt, FunctionType.Function)
     }
 
-    fun resolveFunction(function : Stmt.FunctionStmt, type: FunctionType){
+    private fun resolveFunction(function : Stmt.FunctionStmt, type: FunctionType){
         // store the previously visited function type before we enter the function
         val enclosingFunction = currentFunction
         // change the current function type to type
@@ -165,13 +170,61 @@ class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Uni
     }
 
     override fun visitReturnStmt(stmt: Stmt.ReturnStmt) {
-        if (currentFunction == FunctionType.None){
-            Lox.error(stmt.keyword, "Can't return from top-level code")
+        if (currentFunction == FunctionType.NONE){
+            Lox.error(stmt.keyword, "Can't return from top-level code.")
         }
 
         if (stmt.expr != null){
+            if (currentFunction == FunctionType.INITIALIZER){
+                Lox.error(stmt.keyword,"Can't return a value from an initializer.")
+            }
             resolve(stmt.expr)
         }
     }
 
+    // it is a bit weird, but lox allows class to be treated as local variable
+    override fun visitClassStmt(stmt: Stmt.ClassStmt) {
+        val enclosingClass = currentClass
+        currentClass = ClassType.CLASS
+        // resolve the function name
+        declare(stmt.name)
+        define(stmt.name)
+        // what we want to do is whenever a this expression is encoutnered, it will resolve to a "local variable" defined in an implicit scope just outside of the block for the method body.
+        // we push a new scope
+        beginScope()
+        //define "this" in the new scope as if it were a variable
+        scopes.last()["this"] = true
+        // resolve method
+        stmt.methods.forEach { method ->
+            var declaration = FunctionType.METHOD
+            if (method.name.lexeme == "init"){
+                declaration = FunctionType.INITIALIZER
+            }
+            resolveFunction(method, declaration)
+        }
+        endScope()
+        currentClass = enclosingClass
+    }
+
+    // since properties are looked up dynamically, they don't get resolved. During resolution, we recurse only into the expression to the left of the dot.
+    // the actual property access happens in the interpreter.
+    override fun visitGetExpr(getExpr: Expr.Get) {
+        resolve(getExpr.obj)
+    }
+
+    override fun visitSetExpr(setExpr: Expr.Set) {
+        resolve(setExpr.obj)
+        resolve(setExpr.value)
+    }
+
+    /*
+    resolve this as a local variable
+     */
+    override fun visitThisExpr(thisExpr: Expr.This) {
+        if (currentClass == ClassType.NONE){
+            Lox.error(thisExpr.keyword, "Can't use 'this' outside of a class.")
+            return
+        }
+        resolveLocal(thisExpr, thisExpr.keyword)
+    }
 }
