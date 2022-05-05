@@ -1,17 +1,34 @@
-class Scanner(val source:String) {
-    // in kotlin we do not need the final keyword here since it is default
-    // on the contrast if we want to extend or override a property or method outside of the class
-    // we need to use open
+/**
+ * Scanner class
+ *
+ * @property source the raw input steam of source code
+ * @constructor create a Scanner Instance
+ */
+
+class Scanner(private val source:String) {
+    /**
+     * A list of generated token
+     */
     private var tokens: MutableList<Token> = mutableListOf()
 
-    //pointers on source
-    private var start = 0
+    /**
+     * Pointer to the first character in the lexeme being scanned.
+     */
+    private var start = 0 // point
+
+    /**
+     * Pointer to the character currently being considered
+     */
     private var current = 0
 
-    //location information
+    /**
+     * The source line [current] is on.
+     */
     private var line = 1
 
-    // map for reserved world
+    /**
+     * A map that match the reserved words to the corresponding tokenType
+     */
     private val keywords = mapOf(
         "and" to TokenType.AND,
         "class" to TokenType.CLASS,
@@ -31,32 +48,28 @@ class Scanner(val source:String) {
         "while" to TokenType.WHILE
     )
 
-    /*
-    * return a list of token based on input
+    /**
+     * adding tokens until it reaches the end
+     * @return a list of generated token
      */
     fun scanTokens() : List<Token> {
+        // if not at the end of the file
         while(!isAtEnd()){
-            // here we at the beginning of next (possible) lexeme.
+            // set the start position to the beginning of the current lexeme
             start = current
+            // turn the current lexeme in to token
             scanToken()
         }
         // at the end of file
-        // add EOF
+        // add EOF as a token
         tokens.add(Token(TokenType.EOF, "", null, line))
-        return tokens;
+        return tokens
     }
 
-    /*
-    * Helper function, determine if all lexemes have been tokenized
-     */
-    private fun isAtEnd() : Boolean{
-        return current >= source.length
-    }
-    /*
-    * Recognize Lexemes and turn them into tokens
+    /**
+     * Recognize a lexeme and turn it into a [Token]
      */
     private fun scanToken(){
-        //the scanner will scan the entire input even if it spots errors
         when(val c = advance()){
             //Single character lexeme
             '(' -> addToken(TokenType.LEFT_PAREN)
@@ -76,10 +89,14 @@ class Scanner(val source:String) {
             '<' -> addToken(if(match('=')) TokenType.LESS_EQUAL else TokenType.LESS)
             '>' -> addToken(if(match('=')) TokenType.GREATER_EQUAL else TokenType.GREATER)
 
-            // for "/" we need to check if it is a comment, if so, we ignore the line
-            '/' -> if(match('/')) {
-                while (peek() != '\n' && !isAtEnd()) advance()
+            // comment or operation
+            '/' ->
+                // if sees "//" then comment
+                if(match('/')) {
+                    // move forward until line ends or reach end
+                    while (peek() != '\n' && !isAtEnd()) advance()
                 }
+                // if just a standalone '/' then it is an operator
                 else{
                     addToken(TokenType.SLASH)
                 }
@@ -89,14 +106,15 @@ class Scanner(val source:String) {
             '\r' -> {}
             '\t' -> {}
 
-            // new lines, not a lexeme but we need to increase the line count.
+            // new lines, not a lexeme but need to increase the line count.
             '\n' -> line++
 
+            // double quote mark the start of a string
             '"' -> string()
 
+            // [1..9] or [a..z|A..Z]
             else ->
                 // number literal
-                // too much work to check each char, so we put in default
                 if (isDigit(c)){
                     number()
                 }
@@ -107,57 +125,64 @@ class Scanner(val source:String) {
                 }
                 //unrecognized lexeme, in lox's language spec, ex. @#^
                 else {
+                    // record the error but not report it
                     Lox.error(line, "Unexpected character.")
                 }
         }
     }
 
-    /*
-    * help method, return the next character in the source
-     */
-    private fun advance() : Char{
-        return source[current++]
-    }
-
-    /*
-    * helper function if the lexeme has no literal mining
+    /**
+     * Handles tokens without literal values
      */
     private fun addToken(type: TokenType){
         addToken(type,null)
     }
 
-    /*
-    * create a token based on the lexeme and add to tokenlist
+    /**
+     * Get the text for the current lexeme, creates a [Token] for it, and add the token to [tokens]
+     * @param type the Type of token to be added
+     * @param literal the literal value for the token
      */
     private fun addToken(type: TokenType, literal: Any?){
         val text = source.substring(start, current)
         tokens.add(Token(type,text, literal, line))
     }
 
-    /*
-    * if meet the expected string
-    * consume it
-    * ex. when meet "!" we want to check if the following character is "="
-    * if it is, we consume the "=" as well and decide that the lexeme is "!="
-    * otherwise we do not consume the character and decide the lexeme is "="
+    /**
+     * Turns number into token
      */
-    private fun match(expected: Char) : Boolean{
-        if (isAtEnd()) return false
-        if (source[current] != expected) return false
-        current ++
-        return true
+    private fun number(){
+        //advance until reach a non-digit character
+        while (isDigit(peek())) advance()
+
+        //if that number is a dot and the character is a digit
+        if (peek() =='.' && isDigit(peekNext())){
+            // move forward the pointer until reach a non-digit character
+            advance()
+            while(isDigit(peek())) advance()
+        }
+
+        //Lox treats all numbers as double at runtime
+        addToken(TokenType.NUMBER, source.substring(start,current).toDouble())
     }
 
-    /*
-    * helper function: lookahead without consuming
+    /**
+     * Determines if the current lexeme is a reserved word or identifier and turns it into the correct token
      */
-    private fun peek() : Char{
-        if (isAtEnd()) return '\u0000'
-        return source[current]
+    private fun identifier(){
+        // assuming all lexemes starting with letter or underscore is an identifier
+        // move the current pointer to the end of the lexeme
+        while(isAlphaNumeric(peek())) advance()
+        // get the text value
+        val text = source.substring(start,current)
+        // check if the text exists in the keyword list, if so it is a reserved word, else it is an identifier
+        val type = keywords[text] ?: TokenType.IDENTIFIER
+        // either the reserved words or identifier will have a literal value in the corresponding token
+        addToken(type)
     }
 
-    /*
-    * tokenize strings
+    /**
+     * Turns string to [Token]
      */
     private fun string() {
         // lox support multi-line strings
@@ -183,63 +208,75 @@ class Scanner(val source:String) {
         addToken(TokenType.STRING, value)
     }
 
-    /*
-    * helper functions: determine if c is a digit
+    /**
+     * Checks if scanner points to the end of file
+     * @return true if scanner reaches the end of file, otherwise returns false
      */
-    private fun isDigit(c:Char):Boolean{
-        return c in '0'..'9'
+    private fun isAtEnd() : Boolean{
+        return current >= source.length
     }
 
-
-    /*
-    * Tokenize number
-    * Support 123; 12.3
-    * Not support 123.; .123
+    /**
+     * Moves the scanner forward by one character
+     * @return the next character in [source]
      */
-    private fun number(){
-        while (isDigit(peek())) advance()
-
-        if (peek() =='.' && isDigit(peekNext())){
-            advance()
-            while(isDigit(peek())) advance()
-        }
-
-        addToken(TokenType.NUMBER, source.substring(start,current).toDouble())
+    private fun advance() : Char{
+        return source[current++]
     }
 
-    /*
-    * helper function: lookahead two characters
+    /**
+     * Consumes and returns true if the current character is [expected], otherwise return false and keep the scanner pointing at the original location.
+     * @param expected the character wanted
+     * @return true if the current character is [expected], otherwise false
+     */
+    private fun match(expected: Char) : Boolean{
+        if (isAtEnd()) return false
+        // if the current character is not expected, return false
+        if (source[current] != expected) return false
+        // if the current character is expected, we consume it and return true
+        current ++
+        return true
+    }
+
+    /**
+     * Looks the current character without consuming that character
+     * @return the current character
+     */
+    private fun peek() : Char{
+        if (isAtEnd()) return '\u0000'
+        return source[current]
+    }
+
+    /**
+     * Looks up the next character
+     * @return the next character, if end of file, return '\u0000'
      */
     private fun peekNext() : Char{
         if (current + 1 >= source.length) return '\u0000'
         return source[current+1]
     }
 
-    /*
-    * helper functions: determine if c is alphabetical or underscore
+    /**
+     * Checks if the current character is a digit
+     * @return true if the current character is a digit, otherwise false
+     */
+    private fun isDigit(c:Char):Boolean{
+        return c in '0'..'9'
+    }
+
+    /**
+     * Checks if the current character is a letter or an underscore
+     * @return true if the current character is letter or underscore, otherwise false
      */
     private fun isAlpha(c:Char):Boolean{
         return (c in 'A'..'Z') || (c in 'a'..'z') || c=='_'
     }
 
-    /*
-    * tokenize reserved words or identifiers
+    /**
+     * Checks if the current character is number or letter or underscore
+     * @return true if the current character is number or letter or underscore, otherwise false
      */
-    private fun identifier(){
-        while(isAlphaNumberic(peek())) advance()
-        // we can only know for sure the lexeme is a reserved word until we reach to the end
-        // not we do not need to know that
-        // not of which requires types only, no literal attached
-        //begin assuming all lexeme starting with a letter or underscore is an identifier
-        val text = source.substring(start,current)
-        // check if the text exists in our keyword list, if so it is a reserved word, else it is an identifier
-        val type = keywords[text] ?: TokenType.IDENTIFIER
-        addToken(type)
-    }
-
-    private fun isAlphaNumberic(c: Char) : Boolean{
+    private fun isAlphaNumeric(c: Char) : Boolean{
         return isAlpha(c) || isDigit(c)
     }
-
-
 }

@@ -21,53 +21,87 @@ interface StmtVisitor<R>{
 // pass to the visitor the current statement
 sealed class Stmt {
     abstract fun <R> accept(visitor: StmtVisitor<R>) : R
+
+    /**
+     * Statement Expression AST (expression;)
+     * @property expr Expression AST
+     */
     class ExpressionStmt(val expr: Expr):Stmt(){
         override fun <R> accept(visitor: StmtVisitor<R>): R {
             return visitor.visitExpressionStmt(this)
         }
     }
+
+    /**
+     * Print Statement AST (print expression;)
+     * @param expr Expression AST
+     */
     class PrintStmt(val expr: Expr):Stmt(){
         override fun <R> accept(visitor: StmtVisitor<R>): R {
             return visitor.visitPrintStmt(this)
         }
     }
 
+    /**
+     * Variable Declaration AST (VAR name = initializer)
+     *
+     * @property name The token with type VAR
+     * @property expr Initializer
+     */
     class VarStmt(val name : Token, val expr : Expr?) : Stmt(){
         override fun <R> accept(visitor: StmtVisitor<R>): R {
             return visitor.visitVarStmt(this)
         }
     }
 
+    /**
+     * Block statement AST ({ statement_one statement_two ... })
+     */
     class BlockStmt(val statements: List<Stmt>) : Stmt() {
         override fun <R> accept(visitor: StmtVisitor<R>): R {
             return visitor.visitBlockStmt(this)
         }
     }
 
+    /**
+     * If statement AST (IF ( condition ) thenBranch ELSE elseBranch)
+     */
     class IfStmt(val condition: Expr, val thenBranch: Stmt, val elseBranch: Stmt?) : Stmt(){
         override fun <R> accept(visitor: StmtVisitor<R>) : R{
             return visitor.visitIfStmt(this)
         }
     }
 
+    /**
+     * While statement AST (WHILE ( condition ) body)
+     */
     class WhileStmt(val condition: Expr, val statement: Stmt): Stmt(){
         override fun <R> accept(visitor: StmtVisitor<R>): R {
             return visitor.visitWhileStmt(this)
         }
     }
 
+    /**
+     * Function statement AST (name ( param_one, param_two, ...) { body })
+     */
     class FunctionStmt(val name: Token, val params: List<Token>, val body: List<Stmt>) : Stmt(){
         override fun <R> accept(visitor: StmtVisitor<R>): R {
             return visitor.visitFunctionStmt(this)
         }
     }
 
+    /**
+     * Return statement AST (keyword value)
+     */
     class ReturnStmt(val keyword: Token, val expr: Expr?):Stmt(){
         override fun <R> accept(visitor: StmtVisitor<R>): R {
             return visitor.visitReturnStmt(this)
         }
     }
 
+    /**
+     * Class statement (CLASS name < superclass { methodOne, methodTwo,...})
+     */
     class ClassStmt(val name: Token, val superclass: Expr.Variable?, val methods : List<FunctionStmt>) : Stmt(){
         override fun <R> accept(visitor: StmtVisitor<R>): R {
             return visitor.visitClassStmt(this)

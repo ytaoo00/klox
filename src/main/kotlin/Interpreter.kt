@@ -6,7 +6,9 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
     // this is the current environment
     private var environment = globals
 
-    // map that associates each syntax tree node with its resolved data.
+    /**
+     * map that associates each expression node with its resolved data.
+     */
     private var locals : MutableMap<Expr,Int> = mutableMapOf()
 
 
@@ -27,11 +29,28 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
         })
     }
 
-    /*
-    receiver of the resolver's result
+    /**
+     * Sets the resolution information in interpreter.
      */
     fun resolve(expr: Expr, depth : Int){
         locals[expr] = depth
+    }
+
+    /**
+     * Looks up the resolved distance in the map.
+     */
+    private fun lookUpVariable(name: Token, expr: Expr) : Any?{
+        val distance = locals[expr]
+        //resolved only local variables.
+        //if a distance exists, a local variable exists
+        return if (distance!= null){
+            //take advantage of the results of our static analysis.
+            environment.getAt(distance, name.lexeme)
+        }
+        //if we do not have a distance, we assume it is a global variable
+        else{
+            globals.get(name)
+        }
     }
 
     override fun visitBinaryExpr(binary: Expr.Binary): Any? {
@@ -228,29 +247,15 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
     override fun visitPrintStmt(stmt: Stmt.PrintStmt) {
         println(stringify(evaluate(stmt.expr)))
     }
-    /*
-    forwards to the resolved variables
+
+    /**
+     * forwards variable to the resolved variables
      */
     override fun visitVariableExpr(variable: Expr.Variable): Any? {
-        return lookUpvariable(variable.name, variable)
+        return lookUpVariable(variable.name, variable)
     }
 
-    /*
-    look up the resolved distance in the map.
-     */
-    private fun lookUpvariable(name: Token, expr: Expr) : Any?{
-        val distance = locals[expr]
-        // we resolved only local variables.
-        //if we do get a distance, we have a local variable
-        return if (distance!= null){
-            //take advantagbe of the results of our static analysis.
-            environment.getAt(distance, name.lexeme)
-        }
-        //if we do not have a distance, we assume it is a global variable
-        else{
-            globals.get(name)
-        }
-    }
+
 
     /*
     If the variable has an initializer, we evaluate it.
@@ -453,7 +458,7 @@ class Interpreter : ExprVisitor<Any?>, StmtVisitor<Unit>{
     }
 
     override fun visitThisExpr(thisExpr: Expr.This): Any? {
-        return lookUpvariable(thisExpr.keyword, thisExpr)
+        return lookUpVariable(thisExpr.keyword, thisExpr)
     }
     // check get expression for reference
     override fun visitSuperExpr(superExpr: Expr.Super): Any? {

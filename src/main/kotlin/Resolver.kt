@@ -1,4 +1,4 @@
-class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Unit> {
+class Resolver(private val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Unit> {
     enum class FunctionType{
         NONE, Function, METHOD, INITIALIZER
     }
@@ -7,10 +7,142 @@ class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Uni
         NONE, CLASS, SUBCLASS
     }
 
+    /**
+     * Tracks the stack of scopes currently in scope. Each element in the stack is a Map representing a single block scope. Keys are variable names, values are boolean indicating if the variable has been successfully resolved.
+     */
     private val scopes : ArrayDeque<MutableMap<String,Boolean>> = ArrayDeque()
     // track whether or not the code we are currently visiting is inside a function declaration
     private var currentFunction : FunctionType = FunctionType.NONE
     private var currentClass : ClassType = ClassType.NONE
+
+    /**
+     * Creates a new scope
+     */
+    private fun beginScope(){
+        scopes.addLast(mutableMapOf())
+    }
+
+    /**
+     * Exits from the innermost scope.
+     */
+    private fun endScope(){
+        scopes.removeLast()
+    }
+
+    /**
+     * Passes the resolution information(how many scopes there are between the current scope and the scope where the variable is defined) to interpreter.
+     * @param expr The AST for expression for assignment.
+     * @param name The name of the targeted variable.
+     */
+    private fun resolveLocal(expr: Expr, name: Token){
+        // start at the innermost scope and work outwards, looking in each map for a matching name
+        for (i in (scopes.size -1) downTo 0){
+            // if we find the variable
+            if (scopes[i].containsKey(name.lexeme)) {
+                //we resolve it, passing in the number of scope between the current innermost scope and the scope where the variable was found
+                interpreter.resolve(expr, scopes.size - 1 - i)
+                return
+            }
+        }
+    }
+
+    /**
+     * Resolves a list of statements AST one at a time.
+     */
+    fun resolve(statements : List<Stmt>){
+        statements.forEach {
+            resolve(it)
+        }
+    }
+
+    /**
+     * Initializes the resolution of a single statement AST.
+     */
+    private fun resolve(statement: Stmt){
+        statement.accept(this)
+    }
+
+    /**
+     * Initializes the resolution of an expression AST.
+     */
+    private fun resolve(expr: Expr){
+        expr.accept(this)
+    }
+
+
+    /**
+     * Adds the variable to the innermost scope so that it shows any outer one; Marks the variable so that Resolver knows the variable exists
+     */
+    private fun declare(name: Token){
+        // Do not resolve global variable
+        if (scopes.isEmpty()) return
+        // get the innermost scope
+        val scope = scopes.last()
+        // records error of double declaration
+        if (scope.containsKey(name.lexeme)){
+            Lox.error(name, "Already a variable with this name in this scope.")
+        }
+        //marks the existence of the variable, since the resolver have not yet see the initializer, mark the variable as not ready yet
+        scope[name.lexeme] = false
+    }
+
+    /**
+     * Sets the variable's value in the scope map to true to mark it as fully initialized and available for use.
+     */
+    private fun define(name: Token){
+        if (scopes.isEmpty()) return
+        scopes.last()[name.lexeme] = true
+    }
+
+    /**
+     * Introduces a new scope for the statements inside the BlockStatement
+     */
+    override fun visitBlockStmt(stmt: Stmt.BlockStmt) {
+        // begin a new scope
+        beginScope()
+        // traverse into the statement inside the block
+        resolve(stmt.statements)
+        // discards the scope
+        endScope()
+    }
+
+    /**
+     * A variable declaration adds a new variable to the current(innermost) scope.
+     * @see [Stmt.VarStmt]
+     */
+    override fun visitVarStmt(stmt: Stmt.VarStmt) {
+        // record the existence of a variable
+        declare(stmt.name)
+        // meet the initializer
+        if (stmt.expr != null){
+            resolve(stmt.expr)
+        }
+        // finish the binding of the variable
+        define(stmt.name)
+    }
+
+    /**
+     * Resolves variables for variable expression
+     */
+    override fun visitVariableExpr(variable: Expr.Variable) {
+        //check if the variable is being access inside its own initializer. Ex(var a = a)
+        // that means a variable exists in the current scope but the value in the map is false
+        if (!scopes.isEmpty() && scopes.last()[variable.name.lexeme] == false){
+            Lox.error(variable.name, "Can't read local variable in its own initializer.")
+        }
+        // resolves the variable
+        resolveLocal(variable, variable.name)
+    }
+
+    /**
+     * Resolves variables for assignment expression
+     */
+    override fun visitAssignExpr(assignment: Expr.Assignment) {
+        // resolve the expression for the assigned value in case it also contains reference to other variables
+        resolve(assignment.value)
+        // resolve variable that is being assigned to.
+        resolveLocal(assignment, assignment.name)
+    }
 
     override fun visitBinaryExpr(binary: Expr.Binary) {
         resolve(binary.left)
@@ -27,35 +159,6 @@ class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Uni
 
     override fun visitLiteralExpr(literal: Expr.Literal) {
         return
-    }
-
-    override fun visitVariableExpr(variable: Expr.Variable) {
-        // if the variable exists in the current scope but its value is false,
-        // it means we have declared it but not yet defined it
-        if (!scopes.isEmpty() && scopes.last()[variable.name.lexeme] == false){
-            Lox.error(variable.name, "Can't read local variable in its own initializer.")
-        }
-
-        resolveLocal(variable, variable.name)
-    }
-
-    private fun resolveLocal(expr: Expr, name: Token){
-        // start at the innermost scope and work outwards, looking in each map for a matching name
-        for (i in (scopes.size -1) downTo 0){
-            // if we find the variable
-            if (scopes[i].containsKey(name.lexeme)) {
-                //we resolve it, passing in the number of scope between the current innermost scope and the scope where the variable was found
-                interpreter.resolve(expr, scopes.size - 1 - i)
-                return
-            }
-        }
-    }
-
-    override fun visitAssignExpr(assignment: Expr.Assignment) {
-        // resolve the expression for the assigned value in case it also contains reference to other variables
-        resolve(assignment.value)
-        // resolve variable that is being assigned to.
-        resolveLocal(assignment, assignment.name)
     }
 
     override fun visitLogicExpr(logic: Expr.Logical) {
@@ -76,61 +179,6 @@ class Resolver(val interpreter: Interpreter): ExprVisitor<Unit>, StmtVisitor<Uni
 
     override fun visitPrintStmt(stmt: Stmt.PrintStmt) {
         resolve(stmt.expr)
-    }
-
-    override fun visitVarStmt(stmt: Stmt.VarStmt) {
-        declare(stmt.name)
-        if (stmt.expr != null){
-            resolve(stmt.expr)
-        }
-        define(stmt.name)
-    }
-
-    private fun declare(name: Token){
-        if (scopes.isEmpty()) return
-        val scope = scopes.last()
-        if (scope.containsKey(name.lexeme)){
-            Lox.error(name, "Already a variable with this name in this scope.")
-        }
-
-        scope[name.lexeme] = false
-    }
-
-    private fun define(name: Token){
-        if (scopes.isEmpty()) return
-        scopes.last()[name.lexeme] = true
-    }
-
-    // Block statement introduces a new scope for the statement it contains
-    override fun visitBlockStmt(stmt: Stmt.BlockStmt) {
-        // begin a new scope
-        beginScope()
-        // traverse into the statement inside the block
-        resolve(stmt.statements)
-        // discards the scope
-        endScope()
-    }
-
-    fun resolve(statements : List<Stmt>){
-        statements.forEach {
-            resolve(it)
-        }
-    }
-
-    fun resolve(statement: Stmt){
-        statement.accept(this)
-    }
-
-    fun resolve(expr: Expr){
-        expr.accept(this)
-    }
-
-    fun beginScope(){
-        scopes.addLast(mutableMapOf())
-    }
-
-    fun endScope(){
-        scopes.removeLast()
     }
 
     override fun visitIfStmt(stmt: Stmt.IfStmt) {
