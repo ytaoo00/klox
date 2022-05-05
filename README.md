@@ -12,8 +12,9 @@
 
 
 ## Architecture
-Pipe and filter. 
-[graph here]
+Pipe and filter.
+
+![pipeAndFilter](pipeAndFilter.png)
 
 ## Scanner
 The first step is scanning(lexical analysis). A scanner takes in the linear stream of characters and produces tokens.
